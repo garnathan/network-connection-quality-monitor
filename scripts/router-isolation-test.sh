@@ -78,6 +78,8 @@ echo ""
 
 # ---------- Helpers ----------
 # Parses macOS BSD ping output. Returns "min|avg|max|stddev|loss_pct".
+# Note: emits pipe-separated directly to avoid IFS leaks when the caller
+# uses `IFS='|' read -r ... <<< "$(ping_stats ...)"`.
 ping_stats() {
   local f="$1"
   if [ ! -s "$f" ]; then
@@ -95,12 +97,11 @@ ping_stats() {
     echo "0|0|0|0|$loss_pct"
     return
   fi
+  # Extract the 4 numbers and join them with | directly
   local nums
-  nums=$(echo "$sum_line" | grep -Eo '[0-9]+\.[0-9]+' | head -4 | tr '\n' ' ')
-  local pmin pavg pmax pstd
-  read -r pmin pavg pmax pstd <<< "$nums"
-  printf "%s|%s|%s|%s|%s\n" \
-    "${pmin:-0}" "${pavg:-0}" "${pmax:-0}" "${pstd:-0}" "$loss_pct"
+  nums=$(echo "$sum_line" | grep -Eo '[0-9]+\.[0-9]+' | head -4 | tr '\n' '|')
+  # nums is now "min|avg|max|stddev|"  — append loss_pct
+  echo "${nums}${loss_pct}"
 }
 
 awk_gt() { awk "BEGIN{exit !($1 > $2)}"; }

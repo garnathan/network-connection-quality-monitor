@@ -51,6 +51,11 @@ Saturates your uplink for the duration — don't run during a video call.
 Reports land in `reports/report-YYYYMMDD-HHMMSS.md` with raw ping logs in
 an appendix.
 
+**Important: run over Ethernet, not Wi-Fi.** Wi-Fi jitter on our Eero is
+severe enough (40ms stddev at idle, spikes to 130ms) that it masks the
+upstream queueing signal and invalidates the verdict. Plug the Mac into
+an Eero LAN port before running.
+
 ## Reports
 
 Committed to `reports/` as a historical record — one report per test run.
