@@ -156,6 +156,7 @@ def main():
     lines.append(f"# Aggregate Report — {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
     lines.append("")
     lines.append(f"Pooled across **{len(report_paths)}** run(s):")
+    lines.append("")
     for name, counts in per_run:
         lines.append(
             f"- `{name}` — "
