@@ -23,6 +23,43 @@ Initial findings: [docs/2026-04-20-initial-findings.md](docs/2026-04-20-initial-
 
 ## Scripts
 
+### `scripts/quick-check.sh` — "is it still broken?"
+
+Fast health check that replicates the two measurements from the 2026-04-20
+baseline and prints a single-line verdict: **RESOLVED / PARTIAL / STILL BROKEN**.
+
+**Run:**
+
+```bash
+./scripts/quick-check.sh                  # default: 90s upload + networkQuality
+./scripts/quick-check.sh 180              # longer test (more conclusive)
+./scripts/quick-check.sh --no-latency 90  # skip networkQuality (upload only)
+./scripts/quick-check.sh --quiet          # one-line output (for cron / status bar)
+```
+
+Total runtime: ~105 s (90 s sustained upload + ~15 s networkQuality).
+Exit codes: `0` = resolved, `1` = partial, `2` = still broken.
+
+**What it measures:**
+
+| Metric | Baseline (broken) | Healthy threshold |
+|--------|-------------------|-------------------|
+| Upload burst (first 15 s, 2 parallel HTTPS POST to Cloudflare) | — | >= 10 Mbps |
+| **Upload sustained (after 15 s)** — verdict driver | ~1 Mbps | >= 10 Mbps |
+| Loaded latency (Apple `networkQuality`, RFC 9097) | 665 ms | < 150 ms |
+
+The burst vs sustained split is deliberate: the 2026-04-20 finding was that
+the 5 G carrier lets short bursts through at full speed (~20 Mbps) and only
+throttles once the burst-token bucket drains, around the 45–70 MB mark.
+A short test that only measures burst will **lie** and say "resolved" even
+when sustained throughput has collapsed. `quick-check.sh` reports both and
+uses the sustained rate as the verdict driver. If burst is healthy but
+sustained is < 50% of burst, it flags "rate-policing detected" in the
+report.
+
+Reports land in `reports/healthcheck-YYYYMMDD-HHMMSS.md`. Use those for
+before/after comparisons across carrier changes, reboots, or ISP tickets.
+
 ### `scripts/router-isolation-test.sh`
 
 Isolates the source of queueing / latency under sustained upload load by
