@@ -1,3 +1,21 @@
 .DS_Store
 *.tmp
 *.swp
+
+# Python
+__pycache__/
+*.pyc
+
+# Web monitor runtime state (SQLite store) — reconstructible, not source
+data/
+*.db
+*.db-wal
+*.db-shm
+
+# Tool output (reports written by monitor.py / upload-test.sh)
+reports/
+
+# Dashboard credentials — never commit real ones (keep webmon.env.example only)
+webmon.env
+*.env
+!*.env.example

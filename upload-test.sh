@@ -51,7 +51,7 @@ LAT_RESOLVED_MS=150      # < 150 ms loaded = resolved
 LAT_PARTIAL_MS=400       # 150..400 = partial, > 400 = broken
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+PROJECT_DIR="$SCRIPT_DIR"
 REPORT_DIR="$PROJECT_DIR/reports"
 mkdir -p "$REPORT_DIR"
 TS=$(date +%Y%m%d-%H%M%S)
@@ -281,7 +281,7 @@ fi
   echo "- Upload sink: \`$UPLOAD_URL\`"
   echo "- Run over **Ethernet** for best signal; Wi-Fi jitter masks upstream queueing."
   echo "- Latency check uses Apple networkQuality (RFC 9097). Interface observed: ${NQ_INTERFACE:-n/a}."
-  echo "- For root-cause isolation (router vs modem vs carrier), run \`scripts/router-isolation-test.sh\`."
+  echo "- For continuous monitoring across every metric, run \`monitor.py\` or the \`webui/\` dashboard."
   if [ -n "$NQ_RAW" ]; then
     echo ""
     echo "## Appendix: networkQuality raw output"

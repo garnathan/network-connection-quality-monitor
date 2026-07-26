@@ -1,0 +1,57 @@
+[Unit]
+Description=ICCD Internet Monitor (web dashboard)
+Documentation=https://github.com/garnathan/network-connection-quality-monitor
+After=network-online.target
+Wants=network-online.target
+# Never stop retrying, even in a fast crash-loop. This is a [Unit] directive;
+# placed in [Service] modern systemd silently ignores it.
+StartLimitIntervalSec=0
+
+[Service]
+# notify: the daemon sends READY=1 once the socket is bound, and pets the
+# watchdog (below) only while it is genuinely healthy.
+Type=notify
+NotifyAccess=main
+User=pi
+Group=pi
+WorkingDirectory=/home/pi/iccd
+# Serves the dashboard on :8080 (Pi-hole owns :80/:443/:53). Credentials are
+# read from the untracked webmon.env (see EnvironmentFile below).
+ExecStart=/usr/bin/python3 /home/pi/iccd/webmon.py \
+    --db /home/pi/iccd/data/webmon.db --host 0.0.0.0 --port 8080
+# Dashboard credentials (ICCD_USER / ICCD_PASS) come from an untracked env file
+# so they are NEVER committed to the repo. deploy.sh copies your local
+# webui/webmon.env to the Pi; the leading '-' makes it optional (if absent,
+# webmon.py generates a random password and logs it). See webmon.env.example.
+EnvironmentFile=-/home/pi/iccd/webmon.env
+# The plan's line rate — throughput is rated as a fraction of this (good >=70%,
+# amber >=40%, red below). Not secret. Tune to your actual broadband plan.
+Environment=ICCD_DOWN_EXPECTED_MBPS=350
+Environment=ICCD_UP_EXPECTED_MBPS=34
+
+# Always keep it running:
+#  - Restart=always + RestartSec: restart on ANY exit (crash OR kill -9).
+#  - WatchdogSec: the daemon pets the watchdog only while healthy (workers
+#    alive, fresh samples, HTTP answering a loopback request); if it HANGS
+#    rather than crashes, systemd kills and restarts it anyway.
+Restart=always
+RestartSec=5
+WatchdogSec=150
+TimeoutStopSec=25
+
+# Grant raw-ICMP so `ping` works as a non-root service even under
+# NoNewPrivileges (which would otherwise strip ping's file capability / setuid,
+# pinning latency/jitter/loss to errors and the verdict to PROBLEMS).
+AmbientCapabilities=CAP_NET_RAW
+CapabilityBoundingSet=CAP_NET_RAW
+
+# Mild hardening. The daemon needs outbound network, ICMP (via the cap above),
+# subprocess (ping/dig/curl), a private /tmp for the upload payload, and a
+# writable /home/pi/iccd/data for the SQLite store.
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectControlGroups=true
+
+[Install]
+WantedBy=multi-user.target

@@ -1,103 +1,88 @@
-# internet-connection-diagnosis
+# network-connection-quality-monitor
 
-Tools and reports for diagnosing home broadband problems on a 5G Fixed Wireless
-Access (FWA) connection. Built to isolate whether upload throttling / latency
-spikes originate in the local router, the modem, or the carrier — and to
-produce reports clean enough to hand to an ISP engineer.
+Tools for diagnosing and continuously monitoring a home broadband connection —
+built for a flaky 5G Fixed-Wireless-Access line, but general. They measure the
+things you actually feel when the internet is bad and produce evidence clean
+enough to hand to an ISP.
 
-## Topology under test
+| Symptom you notice | What it measures |
+|--------------------|------------------|
+| Streaming drops to low quality | **download** throughput (rated against your plan) |
+| Pages slow to load | **DNS** resolve time, page **time-to-first-byte** |
+| Zoom / calls lag and stutter | **latency, jitter, packet loss**, and **bufferbloat** (latency measured *while the link is saturated* — the best predictor of a bad call) |
+| Uploads stall | **upload** throughput |
+
+Everything is **pure Python 3 / bash — no third-party dependencies**. A tool for
+diagnosing a broken connection must not need a working connection to install
+anything.
+
+## Layout
 
 ```
-Mac ── (WiFi/Eth) ── Eero ── Eth ── 5G modem (outside) ── 5G carrier
-      hop 0           hop 1           hop 2                   hop 3+
+probes.py         # shared measurement backend — the ONE source of truth for
+                  #   every probe, threshold and rating (ping / dig / curl)
+monitor.py        # interactive terminal monitor — run it, watch, Ctrl-C
+upload-test.sh    # the original one-shot sustained-upload tester
+webui/            # the always-on web dashboard, as a persistent Pi service
 ```
 
-## Symptoms being diagnosed
+Both `monitor.py` and `webui/webmon.py` import `probes.py`, so the terminal tool
+and the web dashboard always measure identically — change a probe once and both
+pick it up.
 
-- Uplink burst capacity: 20 Mbps
-- Sustained upload throughput: ~1 Mbps (5% of burst)
-- HTTP loaded latency: 665 ms vs 45 ms idle (14.8× penalty)
-- Large file uploads stall or fail around the 45–70 % mark
+## `monitor.py` — interactive terminal monitor
 
-Initial findings: [docs/2026-04-20-initial-findings.md](docs/2026-04-20-initial-findings.md).
-
-## Scripts
-
-### `scripts/quick-check.sh` — "is it still broken?"
-
-Fast health check that replicates the two measurements from the 2026-04-20
-baseline and prints a single-line verdict: **RESOLVED / PARTIAL / STILL BROKEN**.
-
-**Run:**
+Run it, watch every metric build up live, and press **Ctrl-C** whenever you like.
+On exit it writes a plain-English report plus raw per-probe CSVs.
 
 ```bash
-./scripts/quick-check.sh                  # default: 90s upload + networkQuality
-./scripts/quick-check.sh 180              # longer test (more conclusive)
-./scripts/quick-check.sh --no-latency 90  # skip networkQuality (upload only)
-./scripts/quick-check.sh --quiet          # one-line output (for cron / status bar)
+./monitor.py                 # live dashboard, runs until Ctrl-C
+./monitor.py --light         # latency / DNS / TTFB only, near-zero data
+./monitor.py --duration 600  # auto-stop after 10 minutes
+./monitor.py --help
 ```
 
-Total runtime: ~105 s (90 s sustained upload + ~15 s networkQuality).
-Exit codes: `0` = resolved, `1` = partial, `2` = still broken.
+Auto-detects the terminal: a live in-place dashboard when interactive, plain
+status lines when piped. Output lands in `reports/monitor-<timestamp>/`
+(`report.md` + `latency.csv` / `dns.csv` / `http.csv` / `throughput.csv`).
+Exit codes: `0` healthy, `1` degraded, `2` problems.
 
-**What it measures:**
+## `webui/` — always-on web dashboard
 
-| Metric | Baseline (broken) | Healthy threshold |
-|--------|-------------------|-------------------|
-| Upload burst (first 15 s, 2 parallel HTTPS POST to Cloudflare) | — | >= 10 Mbps |
-| **Upload sustained (after 15 s)** — verdict driver | ~1 Mbps | >= 10 Mbps |
-| Loaded latency (Apple `networkQuality`, RFC 9097) | 665 ms | < 150 ms |
-
-The burst vs sustained split is deliberate: the 2026-04-20 finding was that
-the 5 G carrier lets short bursts through at full speed (~20 Mbps) and only
-throttles once the burst-token bucket drains, around the 45–70 MB mark.
-A short test that only measures burst will **lie** and say "resolved" even
-when sustained throughput has collapsed. `quick-check.sh` reports both and
-uses the sustained rate as the verdict driver. If burst is healthy but
-sustained is < 50% of burst, it flags "rate-policing detected" in the
-report.
-
-Reports land in `reports/healthcheck-YYYYMMDD-HHMMSS.md`. Use those for
-before/after comparisons across carrier changes, reboots, or ISP tickets.
-
-### `scripts/router-isolation-test.sh`
-
-Isolates the source of queueing / latency under sustained upload load by
-pinging two hops in parallel:
-
-1. **Eero LAN IP** — tests the router's internal queue
-2. **First upstream hop** (the 5G modem's LAN-side IP) — tests the Eero → modem link
-
-**Run:**
+A 24/7 daemon with a modern web UI you open on your LAN, designed to run on the
+home Raspberry Pi without getting in the way of work or calls. Per-stat history
+charts (1h / 6h / 1d / 1w / 1m), a wired-vs-wireless link timeline, live
+data-usage counter, and HTTP Basic Auth. History is stored in SQLite so it
+survives reboots.
 
 ```bash
-./scripts/router-isolation-test.sh [duration_seconds]   # default 60s
+./webui/run.sh               # try it locally at http://localhost:8080
+./webui/deploy.sh home-pi    # install on the Pi as a persistent systemd service
 ```
 
-Total runtime: ~80 s (15 s idle baseline + 3 s ramp + N s loaded phase).
-Saturates your uplink for the duration — don't run during a video call.
+It runs as a robust persistent service (auto-start on boot, restart on crash,
+systemd **watchdog** that also catches hangs, self-healing probe workers). Full
+details, configuration, and management commands are in
+[`webui/README.md`](webui/README.md).
 
-**Interpretation:**
+**Bandwidth-safe:** the cheap probes (latency / DNS / TTFB / link) run often and
+cost almost nothing; the expensive throughput test runs infrequently and is
+**skipped whenever the link is already busy**, so it never fights an active call
+or stream.
 
-| Eero Δ latency | Modem Δ latency | Verdict                                       |
-|----------------|-----------------|-----------------------------------------------|
-| Large          | Small           | Router is the bottleneck (Eero queue fills)   |
-| Large          | Large           | Modem or carrier (queueing at/above modem)    |
-| Small          | Small           | Carrier is rate-policing — no queue anywhere  |
+## `upload-test.sh` — sustained-upload tester
 
-Reports land in `reports/report-YYYYMMDD-HHMMSS.md` with raw ping logs in
-an appendix.
+The original one-shot check that isolated the carrier's upload rate-policing:
+saturates the uplink for N seconds and splits burst vs. sustained throughput
+(the carrier lets short bursts through at full speed, then throttles once the
+burst-token bucket drains). Also reports loaded latency via Apple
+`networkQuality`.
 
-**Important: run over Ethernet, not Wi-Fi.** Wi-Fi jitter on our Eero is
-severe enough (40ms stddev at idle, spikes to 130ms) that it masks the
-upstream queueing signal and invalidates the verdict. Plug the Mac into
-an Eero LAN port before running.
+```bash
+./upload-test.sh             # ~90 s sustained upload + loaded-latency check
+./upload-test.sh 180         # longer, more conclusive
+./upload-test.sh --quiet     # one-line verdict (cron / status bar)
+```
 
-## Reports
-
-Committed to `reports/` as a historical record — one report per test run.
-Useful for:
-
-- Before/after comparisons (e.g. rebooting Eero, switching WiFi → Ethernet)
-- Time-of-day correlation (carrier congestion varies)
-- Evidence for the ISP when escalating
+Writes `reports/healthcheck-<timestamp>.md`. Exit codes: `0` resolved,
+`1` partial, `2` still broken.
