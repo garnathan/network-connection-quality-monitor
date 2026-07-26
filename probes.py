@@ -54,7 +54,7 @@ THRESHOLDS = {
 # judged RELATIVE to these, so a link delivering a small fraction of what you
 # pay for reads as a problem even when the raw number looks "fast enough".
 # Override at startup with configure_expected(); defaults are Gareth's plan.
-DEFAULT_DOWN_EXPECTED_MBPS = 350.0
+DEFAULT_DOWN_EXPECTED_MBPS = 200.0
 DEFAULT_UP_EXPECTED_MBPS = 34.0
 
 # Fraction-of-plan bands for throughput: good >= 70%, warn >= 40%, else bad.

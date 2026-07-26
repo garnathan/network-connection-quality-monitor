@@ -83,7 +83,7 @@ shipped default password to guess.
 | Setting | Env | Default |
 |---------|-----|---------|
 | Basic-auth user / pass | `ICCD_USER` / `ICCD_PASS` | see [Credentials](#credentials) |
-| Plan download / upload (Mbps) | `ICCD_DOWN_EXPECTED_MBPS` / `ICCD_UP_EXPECTED_MBPS` | `350` / `34` |
+| Plan download / upload (Mbps) | `ICCD_DOWN_EXPECTED_MBPS` / `ICCD_UP_EXPECTED_MBPS` | `200` / `34` |
 | Throughput interval (s) | `ICCD_TP_INTERVAL` | `1800` |
 | DB path | `ICCD_DB` (or `--db`) | `<webui>/data/webmon.db` |
 | Port / host | `ICCD_PORT` / `ICCD_HOST` | `8080` / `0.0.0.0` |

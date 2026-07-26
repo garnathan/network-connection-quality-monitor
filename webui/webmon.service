@@ -26,7 +26,7 @@ ExecStart=/usr/bin/python3 /home/pi/iccd/webmon.py \
 EnvironmentFile=-/home/pi/iccd/webmon.env
 # The plan's line rate — throughput is rated as a fraction of this (good >=70%,
 # amber >=40%, red below). Not secret. Tune to your actual broadband plan.
-Environment=ICCD_DOWN_EXPECTED_MBPS=350
+Environment=ICCD_DOWN_EXPECTED_MBPS=200
 Environment=ICCD_UP_EXPECTED_MBPS=34
 
 # Always keep it running:
